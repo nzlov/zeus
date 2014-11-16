@@ -4,7 +4,7 @@ Zeus is a very simple and fast HTTP router for Go, nothing more, nothing less.
 
 #### Install
 
-`go get github.com/daryl/zeus`
+    go get github.com/daryl/zeus
 
 #### Usage
 

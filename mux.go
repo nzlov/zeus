@@ -92,7 +92,7 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) try(path string) (url.Values, bool) {
-	// Pattern and URL Path segments.
+	// Patt and URL segments.
 	ps := strings.Split(h.patt[1:], "/")
 	us := strings.Split(path[1:], "/")
 
@@ -109,7 +109,7 @@ func (h *Handler) try(path string) (url.Values, bool) {
 	uv := url.Values{}
 
 	for idx, part := range ps {
-		// Character is at least :x
+		// Part is at least :x
 		if len(part) > 1 && part[:1] == ":" {
 			// Add to parameters.
 			uv.Add(part[1:], us[idx])

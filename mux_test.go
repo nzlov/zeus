@@ -77,13 +77,29 @@ func TestPATCH(t *testing.T) {
 	defaultMethodTest(t, m, m.PATCH, "PATCH")
 }
 
+type fields map[string]string
+
+var tryTests = []struct {
+	pattern string
+	path    string
+	fields  fields
+}{
+	{"/foo", "/foo", fields{}},
+	{"/foo/:bar", "/foo/xyz", fields{"bar": "xyz"}},
+	{"/foo/:bar/:baz", "/foo/xyz/123", fields{"bar": "xyz", "baz": "123"}},
+}
+
 func TestTry(t *testing.T) {
-	h := &Handler{"/foo/:bar/baz", http.NotFound}
+	for _, tt := range tryTests {
+		h := &Handler{tt.pattern, http.NotFound}
+		values, ok := h.try(tt.path)
 
-	values, ok := h.try("/foo/xyz/baz")
-
-	if ok != true || values.Get("bar") != "xyz" {
-		t.Fatalf("h.try(\"/foo/xyz/baz\") = %v, %v, wanted map[bar:[xyz]], true", values, ok)
+		for key, value := range tt.fields {
+			if ok != true || values.Get(key) != value {
+				t.Fatalf("h.try(\"%s\") = %v, %v, wanted map[%s:[%s]], true",
+					tt.path, values, ok, key, value)
+			}
+		}
 	}
 }
 

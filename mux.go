@@ -7,17 +7,19 @@ import (
 	"strings"
 )
 
+// Mux contains a map of handlers and the NotFound handler func
 type Mux struct {
 	handlers map[string][]*Handler
 	NotFound http.HandlerFunc
 }
 
+// Handler contains the pattern and handler func
 type Handler struct {
 	patt string
 	http.HandlerFunc
 }
 
-// Returns a new Mux instance.
+// New returns a new Mux instance.
 func New() *Mux {
 	return &Mux{make(map[string][]*Handler), nil}
 }
@@ -38,7 +40,7 @@ func (m *Mux) GET(patt string, handler http.HandlerFunc) {
 	m.add("HEAD", &Handler{patt, handler})
 }
 
-// GET adds a new route for GET requests.
+// HEAD adds a new route for HEAD requests.
 func (m *Mux) HEAD(patt string, handler http.HandlerFunc) {
 	m.add("HEAD", &Handler{patt, handler})
 }

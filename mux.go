@@ -7,13 +7,13 @@ import (
 	"strings"
 )
 
-// Mux contains a map of handlers and the NotFound handler func
+// Mux contains a map of handlers and the NotFound handler func.
 type Mux struct {
 	handlers map[string][]*Handler
 	NotFound http.HandlerFunc
 }
 
-// Handler contains the pattern and handler func
+// Handler contains the pattern and handler func.
 type Handler struct {
 	patt string
 	http.HandlerFunc
@@ -71,13 +71,19 @@ func (m *Mux) PATCH(patt string, handler http.HandlerFunc) {
 }
 
 func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	plen := len(r.URL.Path)
+	// Redirect trailing slash URL's.
+	if plen > 1 && r.URL.Path[plen-1:] == "/" {
+		http.Redirect(w, r, r.URL.Path[:plen-1], 301)
+		return
+	}
 	// Map over the registered handlers for
 	// the current request (if there is any).
 	for _, handler := range m.handlers[r.Method] {
 		// Try the pattern against the URL path.
 		if vars, ok := handler.try(r.URL.Path); ok {
-			// Add params to URL query.
-			r.URL.RawQuery += "&" + vars.Encode()
+			// Prepend params to URL query.
+			r.URL.RawQuery = vars.Encode() + "&" + r.URL.RawQuery
 			// Serve handlers.
 			handler.ServeHTTP(w, r)
 			return

@@ -71,10 +71,10 @@ func (m *Mux) PATCH(patt string, handler http.HandlerFunc) {
 }
 
 func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	plen := len(r.URL.Path)
+	l := len(r.URL.Path)
 	// Redirect trailing slash URL's.
-	if plen > 1 && r.URL.Path[plen-1:] == "/" {
-		http.Redirect(w, r, r.URL.Path[:plen-1], 301)
+	if l > 1 && r.URL.Path[l-1:] == "/" {
+		http.Redirect(w, r, r.URL.Path[:l-1], 301)
 		return
 	}
 	// Map over the registered handlers for
@@ -100,6 +100,13 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) try(path string) (url.Values, bool) {
+	// If the patt contains no named
+	// segments, see it it matches
+	// the URL path first.
+	if strings.Index(h.patt, ":") == -1 {
+		return nil, path == h.patt
+	}
+
 	// Patt and URL segments.
 	ps := strings.Split(h.patt[1:], "/")
 	us := strings.Split(path[1:], "/")
@@ -111,10 +118,10 @@ func (h *Handler) try(path string) (url.Values, bool) {
 		return nil, false
 	}
 
-	// Compiled.
-	var cs string
 	// Parameters.
 	uv := url.Values{}
+	// Compiled.
+	var cs string
 
 	for idx, part := range ps {
 		// Part is at least :x
@@ -128,10 +135,6 @@ func (h *Handler) try(path string) (url.Values, bool) {
 		// Add patt seg.
 		cs += "/" + part
 	}
-	// Match?
-	if cs == path {
-		return uv, true
-	}
 
-	return nil, false
+	return uv, cs == path
 }

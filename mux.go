@@ -83,8 +83,10 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Try the pattern against the URL path.
 		if vars, ok := handler.try(r.URL.Path); ok {
 			// Prepend params to URL query.
-			r.URL.RawQuery = vars.Encode() + "&" + r.URL.RawQuery
-			// Serve handlers.
+			if vars != nil && len(vars) > 0 {
+				r.URL.RawQuery = vars.Encode() + "&" + r.URL.RawQuery
+			}
+			// Serve handler.
 			handler.ServeHTTP(w, r)
 			return
 		}

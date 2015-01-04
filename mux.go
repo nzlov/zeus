@@ -3,7 +3,6 @@ package zeus
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 )
 
@@ -16,12 +15,33 @@ type Mux struct {
 // Handler contains the pattern and handler func.
 type Handler struct {
 	patt string
+	vars bool
+	wild bool
 	http.HandlerFunc
 }
+
+var vars = map[*http.Request]map[string]string{}
 
 // New returns a new Mux instance.
 func New() *Mux {
 	return &Mux{make(map[string][]*Handler), nil}
+}
+
+// Get route variables for the current request.
+func Vars(r *http.Request) map[string]string {
+	if v, ok := vars[r]; ok {
+		return v
+	}
+	return nil
+}
+
+// Get route variable from the current request.
+func Var(r *http.Request, n string) string {
+	var v string
+	if m := Vars(r); m != nil {
+		v, _ = m[n]
+	}
+	return v
 }
 
 // Listen is a shorthand way of doing http.ListenAndServe.
@@ -30,44 +50,52 @@ func (m *Mux) Listen(port string) {
 	http.ListenAndServe(port, m)
 }
 
-func (m *Mux) add(meth string, handler *Handler) {
-	m.handlers[meth] = append(m.handlers[meth], handler)
+func (m *Mux) add(meth, patt string, handler http.HandlerFunc) {
+	h := &Handler{patt, false, false, handler}
+	for _, v := range patt {
+		if v == ':' {
+			h.vars = true
+		} else if v == '*' {
+			h.wild = true
+		}
+	}
+	m.handlers[meth] = append(m.handlers[meth], h)
 }
 
 // GET adds a new route for GET requests.
 func (m *Mux) GET(patt string, handler http.HandlerFunc) {
-	m.add("GET", &Handler{patt, handler})
-	m.add("HEAD", &Handler{patt, handler})
+	m.add("GET", patt, handler)
+	m.add("HEAD", patt, handler)
 }
 
 // HEAD adds a new route for HEAD requests.
 func (m *Mux) HEAD(patt string, handler http.HandlerFunc) {
-	m.add("HEAD", &Handler{patt, handler})
+	m.add("HEAD", patt, handler)
 }
 
 // POST adds a new route for POST requests.
 func (m *Mux) POST(patt string, handler http.HandlerFunc) {
-	m.add("POST", &Handler{patt, handler})
+	m.add("POST", patt, handler)
 }
 
 // PUT adds a new route for PUT requests.
 func (m *Mux) PUT(patt string, handler http.HandlerFunc) {
-	m.add("PUT", &Handler{patt, handler})
+	m.add("PUT", patt, handler)
 }
 
 // DELETE adds a new route for DELETE requests.
 func (m *Mux) DELETE(patt string, handler http.HandlerFunc) {
-	m.add("DELETE", &Handler{patt, handler})
+	m.add("DELETE", patt, handler)
 }
 
 // OPTIONS adds a new route for OPTIONS requests.
 func (m *Mux) OPTIONS(patt string, handler http.HandlerFunc) {
-	m.add("OPTIONS", &Handler{patt, handler})
+	m.add("OPTIONS", patt, handler)
 }
 
 // PATCH adds a new route for PATCH requests.
 func (m *Mux) PATCH(patt string, handler http.HandlerFunc) {
-	m.add("PATCH", &Handler{patt, handler})
+	m.add("PATCH", patt, handler)
 }
 
 func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -80,16 +108,22 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Map over the registered handlers for
 	// the current request (if there is any).
 	for _, handler := range m.handlers[r.Method] {
-		// Try the pattern against the URL path.
-		if vars, ok := handler.try(r.URL.Path); ok {
-			// Prepend params to URL query.
-			if vars != nil && len(vars) > 0 {
-				r.URL.RawQuery = vars.Encode() + "&" + r.URL.RawQuery
+		// If the route doesn't have any
+		// named parameters or wildcards.
+		if !handler.vars && !handler.wild {
+			if handler.patt == r.URL.Path {
+				handler.ServeHTTP(w, r)
+				return
 			}
-			// Serve handler.
+			continue
+		}
+		// Compare pattern to URL.
+		if ok := handler.try(r); ok {
 			handler.ServeHTTP(w, r)
+			delete(vars, r)
 			return
 		}
+		delete(vars, r)
 	}
 	// Custom 404 handler?
 	if m.NotFound != nil {
@@ -101,40 +135,48 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
-func (h *Handler) try(path string) (url.Values, bool) {
+func (h *Handler) try(r *http.Request) bool {
+	up := r.URL.Path
+	us := strings.Split(up[1:], "/")
 	ps := strings.Split(h.patt[1:], "/")
-	us := strings.Split(path[1:], "/")
-	pl := len(ps) - 1
+	pl := len(ps)
 
-	if pl+1 > len(us) {
-		return nil, false
+	if pl > len(us) {
+		return false
+	}
+
+	if h.vars {
+		vars[r] = map[string]string{}
 	}
 
 	var cs string
-	var wild bool
-
-	uv := url.Values{}
+	var wilder bool
 
 	for idx, part := range ps {
-		if part == "*" {
-			if idx != pl {
+		// Wildcard segment.
+		if h.wild && part == "*" {
+			if idx < pl-1 {
 				cs += "/" + us[idx]
-			} else {
-				wild = true
+				continue
 			}
-			continue
+			// Trailing *
+			wilder = true
+			break
 		}
-		if len(part) > 1 && part[:1] == ":" {
+		// Named parameter segment.
+		if h.vars && part[:1] == ":" {
 			cs += "/" + us[idx]
-			uv.Add(part[1:], us[idx])
+			vars[r][part[1:]] = us[idx]
 			continue
 		}
+		// Regular.
 		cs += "/" + part
 	}
 
-	if wild {
-		return uv, path[0:len(cs)] == cs
+	if wilder {
+		// /url/trailing/*
+		return up[0:len(cs)] == cs
 	}
 
-	return uv, cs == path
+	return cs == up
 }

@@ -1,6 +1,12 @@
 # Zeus
 
-Zeus is a very simple and fast HTTP router for Go, nothing more, nothing less.
+Zeus is a super-duper, simple and fast HTTP router for Go, nothing more, nothing less.
+
+#### Important changes
+
+Previously, Zeus used `r.URL.Query.Get("foo")` to fetch route params, this has now
+been changed. This change has had a *drastic* speed improvement for routes containing
+named paramaters. Please refer to the updated usage example below.
 
 #### Install
 
@@ -19,29 +25,37 @@ import (
 
 func main() {
     mux := zeus.New()
-    // Supports named parameters
+    // Supports named parameters.
     mux.GET("/users/:id", showUser)
-    // Supports wildcards
+    // Supports wildcards anywhere.
     mux.GET("/foo/*", catchFoo)
-    // Custom 404 handler
+    // Custom 404 handler.
     mux.NotFound = notFound
-    // Listen and serve
+    // Listen and serve.
     mux.Listen(":4545")
 }
 
 func showUser(w http.ResponseWriter, r *http.Request) {
-    // Extract parameter value
-    id := r.URL.Query().Get("id")
+    var id string
+
+    // Get a map of all
+    // route variables.
+    vm := zues.Vars(r)
+
+    id = vm["id"]
+
+    // Or just one.
+    id = zeus.Var(r, "id")
 
     fmt.Fprintf(w, "User ID: %s", id)
 }
 
 func catchFoo(w http.ResponseWriter, r *http.Request) {
-    fmt.Fprintf(w, "Catching all the things")
+    w.Write(w, []byte("Gotta catch 'em all"))
 }
 
 func notFound(w http.ResponseWriter, r *http.Request) {
-    fmt.Fprintf(w, "Nothing to see here")
+    w.Write(w, []byte("Nothing to see here"))
 }
 ```
 

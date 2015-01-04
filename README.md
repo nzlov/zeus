@@ -22,7 +22,7 @@ func main() {
     // Supports named parameters
     mux.GET("/users/:id", showUser)
     // Supports wildcards
-    mux.GET("/foo/*"", catchFoo)
+    mux.GET("/foo/*", catchFoo)
     // Custom 404 handler
     mux.NotFound = notFound
     // Listen and serve

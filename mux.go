@@ -102,40 +102,38 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) try(path string) (url.Values, bool) {
-	// If the patt contains no named
-	// segments, see it it matches
-	// the URL path first.
-	if strings.Index(h.patt, ":") == -1 {
-		return nil, path == h.patt
-	}
-
-	// Patt and URL segments.
 	ps := strings.Split(h.patt[1:], "/")
 	us := strings.Split(path[1:], "/")
+	pl := len(ps) - 1
 
-	// If the patt and URL slices
-	// have different lengths we
-	// already know it's bad.
-	if len(ps) != len(us) {
+	if pl+1 > len(us) {
 		return nil, false
 	}
 
-	// Parameters.
-	uv := url.Values{}
-	// Compiled.
 	var cs string
+	var wild bool
+
+	uv := url.Values{}
 
 	for idx, part := range ps {
-		// Part is at least :x
-		if len(part) > 1 && part[:1] == ":" {
-			// Add to parameters.
-			uv.Add(part[1:], us[idx])
-			// Add URL seg.
-			cs += "/" + us[idx]
+		if part == "*" {
+			if idx != pl {
+				cs += "/" + us[idx]
+			} else {
+				wild = true
+			}
 			continue
 		}
-		// Add patt seg.
+		if len(part) > 1 && part[:1] == ":" {
+			cs += "/" + us[idx]
+			uv.Add(part[1:], us[idx])
+			continue
+		}
 		cs += "/" + part
+	}
+
+	if wild {
+		return uv, path[0:len(cs)] == cs
 	}
 
 	return uv, cs == path

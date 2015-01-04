@@ -21,6 +21,8 @@ func main() {
     mux := zeus.New()
     // Supports named parameters
     mux.GET("/users/:id", showUser)
+    // Supports wildcards
+    mux.GET("/foo/*"", catchFoo)
     // Custom 404 handler
     mux.NotFound = notFound
     // Listen and serve
@@ -32,6 +34,10 @@ func showUser(w http.ResponseWriter, r *http.Request) {
     id := r.URL.Query().Get("id")
 
     fmt.Fprintf(w, "User ID: %s", id)
+}
+
+func catchFoo(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintf(w, "Catching all the things")
 }
 
 func notFound(w http.ResponseWriter, r *http.Request) {

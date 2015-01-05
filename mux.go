@@ -59,7 +59,10 @@ func (m *Mux) add(meth, patt string, handler http.HandlerFunc) {
 			h.wild = true
 		}
 	}
-	m.handlers[meth] = append(m.handlers[meth], h)
+	m.handlers[meth] = append(
+		m.handlers[meth],
+		h,
+	)
 }
 
 // GET adds a new route for GET requests.
@@ -150,18 +153,12 @@ func (h *Handler) try(r *http.Request) bool {
 	}
 
 	var cs string
-	var wilder bool
 
 	for idx, part := range ps {
 		// Wildcard segment.
 		if h.wild && part == "*" {
-			if idx < pl-1 {
-				cs += "/" + us[idx]
-				continue
-			}
-			// Trailing *
-			wilder = true
-			break
+			cs += "/" + us[idx]
+			continue
 		}
 		// Named parameter segment.
 		if h.vars && part[:1] == ":" {
@@ -173,8 +170,8 @@ func (h *Handler) try(r *http.Request) bool {
 		cs += "/" + part
 	}
 
-	if wilder {
-		// /url/trailing/*
+	// If the pattern ends with *
+	if h.wild && h.patt[len(h.patt):] == "*" {
 		return up[0:len(cs)] == cs
 	}
 

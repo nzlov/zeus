@@ -3,7 +3,6 @@ package zeus
 import (
 	"fmt"
 	"net/http"
-	"strings"
 )
 
 // Mux contains a map of handlers and the NotFound handler func.
@@ -14,9 +13,9 @@ type Mux struct {
 
 // Handler contains the pattern and handler func.
 type Handler struct {
-	patt string
-	vars bool
-	wild bool
+	patt  string
+	parts []string
+	wild  bool
 	http.HandlerFunc
 }
 
@@ -51,14 +50,13 @@ func (m *Mux) Listen(port string) {
 }
 
 func (m *Mux) add(meth, patt string, handler http.HandlerFunc) {
-	h := &Handler{patt, false, false, handler}
-	for _, v := range patt {
-		if v == ':' {
-			h.vars = true
-		} else if v == '*' {
-			h.wild = true
-		}
+	h := &Handler{
+		patt,
+		split(trim(patt, "/"), "/"),
+		patt[len(patt)-1:] == "*",
+		handler,
 	}
+
 	m.handlers[meth] = append(
 		m.handlers[meth],
 		h,
@@ -108,25 +106,23 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, r.URL.Path[:l-1], 301)
 		return
 	}
+	// Split the URL into segments.
+	segments := split(trim(r.URL.Path, "/"), "/")
 	// Map over the registered handlers for
 	// the current request (if there is any).
 	for _, handler := range m.handlers[r.Method] {
-		// If the route doesn't have any
-		// named parameters or wildcards.
-		if !handler.vars && !handler.wild {
-			if handler.patt == r.URL.Path {
-				handler.ServeHTTP(w, r)
-				return
-			}
-			continue
+		// Try and match the pattern
+		if handler.patt == r.URL.Path {
+			handler.ServeHTTP(w, r)
+			return
 		}
-		// Compare pattern to URL.
-		if ok := handler.try(r); ok {
+		// Compare pattern segments to URL.
+		if ok, v := handler.try(segments); ok {
+			vars[r] = v
 			handler.ServeHTTP(w, r)
 			delete(vars, r)
 			return
 		}
-		delete(vars, r)
 	}
 	// Custom 404 handler?
 	if m.NotFound != nil {
@@ -138,42 +134,25 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
-func (h *Handler) try(r *http.Request) bool {
-	up := r.URL.Path
-	us := strings.Split(up[1:], "/")
-	ps := strings.Split(h.patt[1:], "/")
-	pl := len(ps)
-
-	if pl > len(us) {
-		return false
+func (h *Handler) try(usegs []string) (bool, map[string]string) {
+	if len(h.parts) != len(usegs) && !h.wild {
+		return false, nil
 	}
 
-	if h.vars {
-		vars[r] = map[string]string{}
-	}
+	vars := map[string]string{}
 
-	var cs string
-
-	for idx, part := range ps {
-		// Wildcard segment.
-		if h.wild && part == "*" {
-			cs += "/" + us[idx]
+	for idx, part := range h.parts {
+		if part == "*" {
 			continue
 		}
-		// Named parameter segment.
-		if h.vars && part[:1] == ":" {
-			cs += "/" + us[idx]
-			vars[r][part[1:]] = us[idx]
+		if part != "" && part[0] == ':' {
+			vars[part[1:]] = usegs[idx]
 			continue
 		}
-		// Regular.
-		cs += "/" + part
+		if part != usegs[idx] {
+			return false, nil
+		}
 	}
 
-	// If the pattern ends with *
-	if h.wild && h.patt[len(h.patt):] == "*" {
-		return up[0:len(cs)] == cs
-	}
-
-	return cs == up
+	return true, vars
 }

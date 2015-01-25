@@ -2,12 +2,6 @@
 
 Zeus is a super-duper, simple and fast HTTP router for Go, nothing more, nothing less.
 
-#### Important changes
-
-Previously, Zeus used `r.URL.Query.Get("foo")` to fetch route params, this has now
-been changed. This change has had a *drastic* speed improvement for routes containing
-named parameters. Please refer to the updated usage example below.
-
 #### Install
 
     go get github.com/daryl/zeus

@@ -45,11 +45,11 @@ func showUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func catchFoo(w http.ResponseWriter, r *http.Request) {
-    w.Write(w, []byte("Gotta catch 'em all"))
+    w.Write([]byte("Gotta catch 'em all"))
 }
 
 func notFound(w http.ResponseWriter, r *http.Request) {
-    w.Write(w, []byte("Nothing to see here"))
+    w.Write([]byte("Nothing to see here"))
 }
 ```
 

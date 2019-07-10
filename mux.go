@@ -63,6 +63,11 @@ func (m *Mux) add(meth, patt string, handler http.HandlerFunc) {
 	)
 }
 
+// Any adds a new route for Any requests.
+func (m *Mux) Any(patt string, handler http.HandlerFunc) {
+	m.add("any", patt, handler)
+}
+
 // GET adds a new route for GET requests.
 func (m *Mux) GET(patt string, handler http.HandlerFunc) {
 	m.add("GET", patt, handler)
@@ -108,6 +113,7 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// Split the URL into segments.
 	segments := split(trim(r.URL.Path, "/"), "/")
+
 	// Map over the registered handlers for
 	// the current request (if there is any).
 	for _, handler := range m.handlers[r.Method] {
@@ -124,6 +130,22 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	for _, handler := range m.handlers["any"] {
+		// Try and match the pattern
+		if handler.patt == r.URL.Path {
+			handler.ServeHTTP(w, r)
+			return
+		}
+		// Compare pattern segments to URL.
+		if ok, v := handler.try(segments); ok {
+			vars[r] = v
+			handler.ServeHTTP(w, r)
+			delete(vars, r)
+			return
+		}
+	}
+
 	// Custom 404 handler?
 	if m.NotFound != nil {
 		w.WriteHeader(404)
